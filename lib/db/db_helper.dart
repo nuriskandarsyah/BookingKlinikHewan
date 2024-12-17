@@ -7,17 +7,12 @@ class DatabaseHelper {
 
   DatabaseHelper._init();
 
-  // Singleton Instance
-  factory DatabaseHelper() => instance;
-
-  // Get Database Instance
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB('sewa_buku.db');
+    _database = await _initDB('klinik_booking.db');
     return _database!;
   }
 
-  // Initialize Database
   Future<Database> _initDB(String filePath) async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
@@ -29,53 +24,47 @@ class DatabaseHelper {
     );
   }
 
-  // Create Table
-  Future _createDB(Database db, int version) async {
+  Future<void> _createDB(Database db, int version) async {
     await db.execute('''
-      CREATE TABLE sewa_buku (
+      CREATE TABLE bookings (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nama TEXT NOT NULL,
-        alamat TEXT NOT NULL,
-        nama_buku Text NOT NULL,
-        tanggal_sewa TEXT NOT NULL,
-        tanggal_kembali TEXT NOT NULL,
-        total_bayar INTEGER NOT NULL
+        nama_pelanggan TEXT NOT NULL,
+        nama_kucing TEXT NOT NULL,
+        tanggal_masuk TEXT NOT NULL,
+        treatment TEXT NOT NULL,
+        total_biaya INTEGER NOT NULL
       )
     ''');
   }
 
-  // Add Data
-  Future<int> addSewa(Map<String, dynamic> data) async {
+  Future<int> addBooking(Map<String, dynamic> data) async {
     final db = await instance.database;
-    return await db.insert('sewa_buku', data);
+    return await db.insert('bookings', data);
   }
 
-  // Get All Data (Ordered by ID Ascending)
-  Future<List<Map<String, dynamic>>> getAllSewa() async {
+  Future<List<Map<String, dynamic>>> getBookings() async {
     final db = await instance.database;
-    return await db.query('sewa_buku', orderBy: 'id ASC');
+    return await db.query('bookings', orderBy: 'id ASC');
   }
 
-  // Update Data
-  Future<int> updateSewa(Map<String, dynamic> data) async {
+  Future<int> updateBooking(Map<String, dynamic> data) async {
     final db = await instance.database;
-    return await db.update(
-      'sewa_buku',
-      data,
-      where: 'id = ?',
-      whereArgs: [data['id']],
-    );
+    return await db
+        .update('bookings', data, where: 'id = ?', whereArgs: [data['id']]);
   }
 
-  // Delete Data
-  Future<int> deleteSewa(int id) async {
+  Future<int> deleteBooking(int id) async {
     final db = await instance.database;
-    return await db.delete('sewa_buku', where: 'id = ?', whereArgs: [id]);
+    return await db.delete('bookings', where: 'id = ?', whereArgs: [id]);
   }
 
-  Future<void> vacuumDatabase() async {
+  Future<void> clearTable() async {
     final db = await instance.database;
-    await db.execute('VACUUM');
-    print("Database telah dioptimalkan dengan VACUUM.");
+    await db.delete('bookings');
+  }
+
+  Future close() async {
+    final db = await instance.database;
+    db.close();
   }
 }

@@ -3,117 +3,124 @@ import 'package:intl/intl.dart';
 import 'db/db_helper.dart';
 
 void main() {
-  runApp(MyApp());
+  runApp(BookingKlinikApp());
 }
 
-class MyApp extends StatelessWidget {
+class BookingKlinikApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: SewaBukuPage(),
+      home: BookingPage(),
     );
   }
 }
 
-class SewaBukuPage extends StatefulWidget {
+class BookingPage extends StatefulWidget {
   @override
-  _SewaBukuPageState createState() => _SewaBukuPageState();
+  _BookingPageState createState() => _BookingPageState();
 }
 
-class _SewaBukuPageState extends State<SewaBukuPage> {
+class _BookingPageState extends State<BookingPage> {
   final dbHelper = DatabaseHelper.instance;
 
   final _namaController = TextEditingController();
-  final _alamatController = TextEditingController();
-  final _namaBukuController = TextEditingController();
-  final _tanggalSewaController = TextEditingController();
-  final _tanggalKembaliController = TextEditingController();
-
-  final int _hargaPerHari = 10000;
-
-  List<Map<String, dynamic>> _notes = [];
-  Map<String, dynamic>? _selectedItem;
+  final _kucingController = TextEditingController();
+  final _tanggalController = TextEditingController();
+  String? _selectedTreatment;
+  List<Map<String, dynamic>> _bookings = [];
 
   @override
   void initState() {
     super.initState();
-    _loadNotes();
+    _loadBookings();
   }
 
-  _loadNotes() async {
-    final notes = await dbHelper.getAllSewa();
+  Future<void> _loadBookings() async {
+    final bookings = await dbHelper.getBookings();
     setState(() {
-      _notes = notes;
+      _bookings = bookings;
     });
   }
 
-  Future<void> _saveData() async {
+  Future<void> _saveBooking() async {
     if (_namaController.text.isEmpty ||
-        _alamatController.text.isEmpty ||
-        _namaBukuController.text.isEmpty ||
-        _tanggalSewaController.text.isEmpty ||
-        _tanggalKembaliController.text.isEmpty) {
+        _kucingController.text.isEmpty ||
+        _tanggalController.text.isEmpty ||
+        _selectedTreatment == null) {
       _showSnackbar("Harap isi semua kolom!");
       return;
     }
 
-    final tanggalSewa = DateTime.parse(_tanggalSewaController.text);
-    final tanggalKembali = DateTime.parse(_tanggalKembaliController.text);
+    final biaya = _calculateTotal(_selectedTreatment!);
 
-    if (tanggalKembali.isBefore(tanggalSewa)) {
-      _showSnackbar("Tanggal Kembali harus setelah Tanggal Sewa!");
-      return;
-    }
+    final data = {
+      'nama_pelanggan': _namaController.text,
+      'nama_kucing': _kucingController.text,
+      'tanggal_masuk': _tanggalController.text,
+      'treatment': _selectedTreatment,
+      'total_biaya': biaya,
+    };
 
-    int lamaSewa = tanggalKembali.difference(tanggalSewa).inDays;
-    lamaSewa = lamaSewa == 0 ? 1 : lamaSewa;
-    print("lama Sewa: $lamaSewa hari");
-    final totalBayar = lamaSewa * _hargaPerHari;
-
-    if (_selectedItem == null) {
-      // Tambah Data Baru
-      await dbHelper.addSewa({
-        'nama': _namaController.text,
-        'alamat': _alamatController.text,
-        'nama_buku': _namaBukuController.text,
-        'tanggal_sewa': _tanggalSewaController.text,
-        'tanggal_kembali': _tanggalKembaliController.text,
-        'total_bayar': totalBayar,
-      });
+    if (_editId == null) {
+      // Tambah data baru
+      await dbHelper.addBooking(data);
+      _showSnackbar("Data berhasil disimpan!");
     } else {
-      // Edit Data
-      await dbHelper.updateSewa({
-        'id': _selectedItem!['id'],
-        'nama': _namaController.text,
-        'alamat': _alamatController.text,
-        'nama_buku': _namaBukuController.text,
-        'tanggal_sewa': _tanggalSewaController.text,
-        'tanggal_kembali': _tanggalKembaliController.text,
-        'total_bayar': totalBayar,
-      });
-      _selectedItem = null;
+      // Edit data
+      data['id'] = _editId;
+      await dbHelper.updateBooking(data);
+      _showSnackbar("Data berhasil diperbarui!");
     }
 
     _clearInput();
-    _loadNotes();
+    _loadBookings();
     _showSnackbar("Data berhasil disimpan!");
+  }
+
+  int _calculateTotal(String treatment) {
+    switch (treatment) {
+      case 'Vaksin Komplit':
+        return 150000;
+      case 'Grooming':
+        return 50000;
+      case 'Grooming & Vaksin':
+        return 200000;
+      default:
+        return 0;
+    }
+  }
+
+  int? _editId;
+
+  void _editBooking(Map<String, dynamic> booking) {
+    setState(() {
+      _editId = booking['id'];
+      _namaController.text = booking['nama_pelanggan'];
+      _kucingController.text = booking['nama_kucing'];
+      _tanggalController.text = booking['tanggal_masuk'];
+      _selectedTreatment = booking['treatment'];
+    });
   }
 
   void _clearInput() {
     _namaController.clear();
-    _alamatController.clear();
-    _namaBukuController.clear();
-    _tanggalSewaController.clear();
-    _tanggalKembaliController.clear();
-    _selectedItem = null;
+    _kucingController.clear();
+    _tanggalController.clear();
+    _selectedTreatment = null;
+    _editId = null;
   }
 
   void _showSnackbar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(message),
-      duration: Duration(seconds: 2),
     ));
+  }
+
+  Future<void> _deleteBooking(int id) async {
+    await dbHelper.deleteBooking(id);
+    _loadBookings();
+    _showSnackbar("Data berhasil dihapus!");
   }
 
   Widget _buildTextField(TextEditingController controller, String label) {
@@ -126,12 +133,12 @@ class _SewaBukuPageState extends State<SewaBukuPage> {
     );
   }
 
-  Widget _buildDatePicker(TextEditingController controller, String label) {
+  Widget _buildDatePicker() {
     return TextField(
-      controller: controller,
+      controller: _tanggalController,
       readOnly: true,
       decoration: InputDecoration(
-        labelText: label,
+        labelText: 'Tanggal Masuk',
         border: OutlineInputBorder(),
       ),
       onTap: () async {
@@ -143,49 +150,10 @@ class _SewaBukuPageState extends State<SewaBukuPage> {
         );
         if (pickedDate != null) {
           setState(() {
-            controller.text = DateFormat('yyyy-MM-dd').format(pickedDate);
+            _tanggalController.text =
+                DateFormat('yyyy-MM-dd').format(pickedDate);
           });
         }
-      },
-    );
-  }
-
-  void _editData(Map<String, dynamic> item) {
-    setState(() {
-      _selectedItem = item;
-      _namaController.text = item['nama'];
-      _alamatController.text = item['alamat'];
-      _namaBukuController.text = item['nama_buku'];
-      _tanggalSewaController.text = item['tanggal_sewa'];
-      _tanggalKembaliController.text = item['tanggal_kembali'];
-    });
-  }
-
-  void _deleteData(int id) async {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text('Hapus data'),
-          content: Text('Apakah Anda yakin ingin menghapus data ini?'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: Text('Batal'),
-            ),
-            TextButton(
-              onPressed: () async {
-                await dbHelper.deleteSewa(id);
-                _loadNotes();
-                Navigator.of(context).pop();
-                _showSnackbar("Data berhasil dihapus!");
-              },
-              child: Text('Hapus'),
-            ),
-          ],
-        );
       },
     );
   }
@@ -193,81 +161,65 @@ class _SewaBukuPageState extends State<SewaBukuPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: const Color.fromARGB(255, 66, 31, 18),
-        title: Text(
-          'Sewa Buku',
-          style: TextStyle(color: Colors.white),
-        ),
-      ),
-      body: SingleChildScrollView(
+      appBar: AppBar(title: Text('Booking Klinik Hewan')),
+      body: Padding(
+        padding: const EdgeInsets.all(8.0),
         child: Column(
           children: [
-            // Form Input di Atas
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Column(
-                children: [
-                  _buildTextField(_namaController, 'Nama'),
-                  SizedBox(height: 10),
-                  _buildTextField(_alamatController, 'Alamat'),
-                  SizedBox(height: 10),
-                  _buildTextField(_namaBukuController, 'Nama Buku'),
-                  SizedBox(height: 10),
-                  _buildDatePicker(_tanggalSewaController, 'Tanggal Sewa'),
-                  SizedBox(height: 10),
-                  _buildDatePicker(
-                      _tanggalKembaliController, 'Tanggal Pengembalian'),
-                  SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _saveData,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color.fromARGB(255, 66, 31, 18),
-                    ),
-                    child: Text(
-                      'Submit',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ),
-                ],
+            _buildTextField(_namaController, 'Nama Pelanggan'),
+            SizedBox(height: 10),
+            _buildTextField(_kucingController, 'Nama Kucing'),
+            SizedBox(height: 10),
+            _buildDatePicker(),
+            SizedBox(height: 10),
+            DropdownButtonFormField<String>(
+              decoration: InputDecoration(
+                labelText: 'Treatment',
+                border: OutlineInputBorder(),
               ),
-            ),
-            Divider(),
-            // List Data di Bawah
-            ListView.builder(
-              shrinkWrap: true,
-              physics: NeverScrollableScrollPhysics(),
-              itemCount: _notes.length,
-              itemBuilder: (context, index) {
-                final item = _notes[index];
-                return ListTile(
-                  title: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start, // Rata kiri
-                    mainAxisSize:
-                        MainAxisSize.min, // Menghindari ruang kosong ekstra
-                    children: [
-                      Text(
-                        item['nama'],
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        item['nama_buku'],
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                    ],
-                  ),
-                  subtitle: Text("Total Bayar: Rp ${item['total_bayar']}"),
-                  onTap: () => _editData(item),
-                  onLongPress: () => _deleteData(item['id']),
-                );
+              value: _selectedTreatment,
+              items: ['Vaksin Komplit', 'Grooming', 'Grooming & Vaksin']
+                  .map((treatment) => DropdownMenuItem(
+                        value: treatment,
+                        child: Text(treatment),
+                      ))
+                  .toList(),
+              onChanged: (value) {
+                setState(() {
+                  _selectedTreatment = value!;
+                });
               },
+            ),
+            SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: _saveBooking,
+              child: Text('Submit'),
+            ),
+            Expanded(
+              child: ListView.builder(
+                itemCount: _bookings.length,
+                itemBuilder: (context, index) {
+                  final booking = _bookings[index];
+                  return ListTile(
+                    title: Text(booking['nama_pelanggan']),
+                    subtitle: Text(
+                        '${booking['treatment']} - Rp ${booking['total_biaya']}'),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: Icon(Icons.edit, color: Colors.blue),
+                          onPressed: () => _editBooking(booking),
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.delete, color: Colors.red),
+                          onPressed: () => _deleteBooking(booking['id']),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
             ),
           ],
         ),
